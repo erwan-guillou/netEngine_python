@@ -7,7 +7,7 @@ class CallbackContainer:
         self._cbConnectNextID = 0
         self._cbDisconnect = []
         self._cbDisconnectNextID = 0
-        self._cbHandshake = []
+        self._cbHandshake = None
 
     def addReceiver(self,callback):
         self._cbReceive.append((self._cbReceiveNextID,callback));

@@ -6,23 +6,24 @@ sys.path.append(join(dirname(__file__),"modules"))
 
 for line in sys.path: print(line)
 
-from netAbstraction import Address, ClientUDP
+from netAbstraction import Address, ClientUDP, MonoClientUDP
 from mykeyboard import KBHit
 
 class ServerHandler:
-    client: ClientUDP = None
+    client = None
 
     @staticmethod
-    def initialize(cli:ClientUDP):
+    def initialize(cli):
         ServerHandler.client = cli
         ServerHandler.client.addReceiver(ServerHandler.receiveData)
-        ServerHandler.client.setHandshake(ServerHandler.handshake)
+        #ServerHandler.client.setHandshake(ServerHandler.handshake)
 
     def receiveData(buffer:bytearray,sender:Address):
         str = buffer.decode('ascii')
         print("> " + str)
 
     def handshake() -> bool:
+        return True
         toSend = bytearray()
         toReceive = bytearray()
         print("handshaking with server")
@@ -59,6 +60,7 @@ def main():
     client._listenUnicast = True
     client._hasBroadcast = True
     client._listenBroadcast = True
+    client._listenMessages = True
     ServerHandler.initialize(client)
 
     try:

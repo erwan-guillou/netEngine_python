@@ -11,6 +11,43 @@ class LayerUDP(Layer):
     transmittedBytesPerSender = {}
 
     @staticmethod
+    def openSocket(port:int,intf:str = "") -> socket.socket | None:
+        try:
+            # Create a UDP socket
+            udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+
+            # Allow reusing the same address
+            udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+            # Enable broadcasting
+            udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+            # Bind to the specified interface and port
+            interface = "0.0.0.0"
+            if intf != "": interface = GetAdapterAddress(intf)
+            udp_sock.bind((interface if interface else "0.0.0.0", port))
+
+            return udp_sock
+
+        except socket.error as e:
+            print(f"Failed to create UDP socket: {e}")
+            return None
+        '''
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            #sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            sock.setblocking(False)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            ip = ""
+            if intf != "": ip = GetAdapterAddress(intf)
+            sock.bind((ip,port))
+            return sock
+        except (socket.error, OSError):
+            sock.close()  # Close the socket if connection fails
+            return None
+        '''
+
+    @staticmethod
     def openUnicastSocket(port:int,intf:str = "") -> socket.socket | None:
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

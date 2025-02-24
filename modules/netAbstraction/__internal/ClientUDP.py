@@ -103,6 +103,7 @@ class ClientUDP(Client):
                 print("Error in select")
                 isGood = False
             if result > 0 and readSet:
+                print("bcast message")
                 buffer = bytearray()
                 res, addr = LayerUDP.partial_receive(self.sock, buffer)
                 if res:

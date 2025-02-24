@@ -5,20 +5,20 @@ from os.path import dirname, join
 sys.path.append(join(dirname(__file__),"modules"))
 
 from netAbstraction import GetAdapterList, GetAdapterAddress
-from netAbstraction import Address,ServerUDP
+from netAbstraction import Address,ServerUDP, MonoServerUDP
 from mykeyboard import KBHit
 
 class ClientHandler:
-    server: ServerUDP = None
+    server = None
     names: dict = {}
 
     @staticmethod
-    def initialize(srv:ServerUDP):
+    def initialize(srv):
         ClientHandler.server = srv
         ClientHandler.server.addReceiver(ClientHandler.receivedData)
         ClientHandler.server.addConnector(ClientHandler.connectedClient)
         ClientHandler.server.addDisconnector(ClientHandler.disconnectedClient)
-        ClientHandler.server.setHandshake(ClientHandler.handshake)
+        #ClientHandler.server.setHandshake(ClientHandler.handshake)
 
     def receivedData(cli:Address,buffer:bytearray):
         print("received data")
@@ -83,6 +83,12 @@ def main():
             ch = ''
             if kb.kbhit(): ch = kb.getch()
             if ch=='q' or ch=='Q': break
+            if ch=='s' or ch=='S':
+                print("Sending lorem ipsum...")
+                buffer = bytearray()
+                message = input("what message to send: ")
+                buffer.extend(map(ord,message))
+                server.send(buffer)
         server.stop()
         print("server stopped")
         server.disconnect()
