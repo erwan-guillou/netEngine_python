@@ -11,10 +11,10 @@ class ClientUDP(Client):
     def __init__(self,ip = "", port = -1):
         Client.__init__(self,ip,port)
         self._unicastSock = None
-        self._hasUnicast = False
-        self._listenUnicast = False
-        self._hasBroadcast = False
-        self._listenBroadcast = False
+        self._hasUnicast = True
+        self._listenUnicast = True
+        self._hasBroadcast = True
+        self._listenBroadcast = True
     
     def start(self) -> bool:
         if self.startedFlag.is_set(): return False
@@ -103,7 +103,6 @@ class ClientUDP(Client):
                 print("Error in select")
                 isGood = False
             if result > 0 and readSet:
-                print("bcast message")
                 buffer = bytearray()
                 res, addr = LayerUDP.partial_receive(self.sock, buffer)
                 if res:

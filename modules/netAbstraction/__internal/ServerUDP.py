@@ -46,7 +46,7 @@ class ServerUDP(Server):
             return False
         
         self._broadcast.ip = GetBroadcastAddress(self.intfToUse)
-        print(self._broadcast.ip)
+        print(self._broadcast.ip,self._broadcast.port)
         self._broadcast.port = self._port+10
 
         self.isConnected.set()

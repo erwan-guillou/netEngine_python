@@ -93,59 +93,62 @@ class LayerUDP(Layer):
 
     @staticmethod
     def send(sock: socket.socket,data: bytearray,addr: Address) -> bool:
-        dataLength = len(data)
+        bufferToSend = struct.pack("I",len(data)) + data
+        dataLength = len(bufferToSend)
         remainingBytes = dataLength
         currentIndex = 0
-        try:
-            byteSent = sock.sendto(struct.pack("I",dataLength),(addr.ip,addr.port))
-        except socket.error:
-            return False
+        packetCount = 0
         while remainingBytes > 0:
-            toSend = remainingBytes
-            if toSend > MaximumPacketSize(sock): toSend = MaximumPacketSize(sock)
+            toSend = remainingBytes + 4
+            if toSend > MaximumPacketSize(sock): toSend = MaximumPacketSize(sock)-4
             try:
-                byteSent = sock.sendto(data[currentIndex:currentIndex+toSend],(addr.ip,addr.port))
+                byteSent = sock.sendto(struct.pack('I',packetCount) + bufferToSend[currentIndex:currentIndex+toSend-4],(addr.ip,addr.port))
                 if byteSent <= 0 or byteSent != toSend:
                     return False
             except socket.error:
                 return False
             time.sleep(0.00001)
-            currentIndex += toSend
-            remainingBytes -= toSend
+            currentIndex += byteSent-4
+            remainingBytes -= byteSent-4
+            packetCount += 1
         return True
     
     @staticmethod
     def receive(sock: socket.socket, data: bytearray) -> tuple[bool,Address]:
         addr = ("",0)
         try:
-            # Receive the data length first (assuming it's a 4-byte unsigned int)
-            length_data, addr = sock.recvfrom(4)
-            if len(length_data) != 4:
-                return False, Address(addr[0],addr[1])  # Failed to receive the data length
-            transmittedLength = struct.unpack("I", length_data)[0]
-            print("LayerTCP::receive : ",transmittedLength, " bytes")
-            data.clear()  # Clear existing data in the bytearray
-            data.extend(bytearray(transmittedLength))  # Resize bytearray
-            receivedBytes = 0
-            remainingBytes = transmittedLength
-            # Receive the actual data
+            data = bytearray()
+            while True:
+                # wait for first packet of next message
+                data, addr = sock.recvfrom(MaximumPacketSize(sock))
+                packetId = struct.unpack("I",data[0:4])[0]
+                if packetId == 0: break
+            transmittedLength = struct.unpack("I", data[4:8])[0]
+            chunk = data[8:]
+            receivedBytes = len(chunk)
+            data += chunk
+            remainingBytes = transmittedLength - receivedBytes
             while receivedBytes < transmittedLength:
-                toReceive = min(MaximumPacketSize(sock), remainingBytes)
-                chunk, addr = sock.recvfrom(toReceive)
-                if len(chunk) == 0:
+                toReceive = min(MaximumPacketSize(sock), remainingBytes+4)
+                recvdata, addr = sock.recvfrom(toReceive)
+                if len(recvdata) == 0:
                     time.sleep(0.00001)  # Sleep for 10 microseconds before retrying
                     continue
-                elif len(chunk) < 0:
+                elif len(recvdata) < 0:
+                    data = bytearray()
                     return False, Address(addr[0],addr[1])  # Socket error
-                if len(chunk) != toReceive:
-                    print(f"Too many bytes received: {len(chunk)} expected: {toReceive}")
+                if len(recvdata) != toReceive:
+                    print(f"Too many bytes received: {len(recvdata)} expected: {toReceive}")
+                    data = bytearray()
                     return False, Address(addr[0],addr[1])  # Unexpected size mismatch
-                data[receivedBytes : receivedBytes + len(chunk)] = chunk
+                packetId = struct.unpack('I',recvdata)[0]
+                chunk = recvdata[4:]
+                data += chunk
                 receivedBytes += len(chunk)
                 remainingBytes -= len(chunk)
-            print("LayerTCP::received : ",len(chunk), " bytes")
             return True, Address(addr[0],addr[1])  # Success
         except socket.error:
+            data = bytearray()
             return False, Address(addr[0],addr[1])  # Handle socket errors
 
     @staticmethod
@@ -159,33 +162,39 @@ class LayerUDP(Layer):
             LayerUDP.transmittedBytesPerSender[sock] = {}
         
         try:
-            tmpData, addr = sock.recvfrom(MaximumPacketSize(sock), socket.MSG_PEEK)
+            tmpData, addr = sock.recvfrom(MaximumPacketSize(sock))
             realAddr = Address(addr[0],addr[1])
-
-            if realAddr.toString() not in LayerUDP.packetsPerSender[sock]:
-                tmpData, addr = sock.recvfrom(4)
-                if len(tmpData) != 4: return False, realAddr
-                transmittedLength = struct.unpack("I", tmpData)[0]
-                realData = bytearray(transmittedLength)
+            packetId = struct.unpack("I", tmpData[0:4])[0]
+            if packetId == 0:
+                transmittedLength = struct.unpack("I", tmpData[4:8])[0]
+                realData = tmpData[8:]
                 LayerUDP.packetsPerSender[sock][realAddr.toString()] = realData
-                LayerUDP.receivedBytesPerSender[sock][realAddr.toString()] = 0
+                LayerUDP.receivedBytesPerSender[sock][realAddr.toString()] = len(realData)
                 LayerUDP.transmittedBytesPerSender[sock][realAddr.toString()] = transmittedLength
-                return True, realAddr
             else:
+                if realAddr.toString() not in LayerUDP.packetsPerSender[sock]:
+                    True, realAddr
                 totalLength = LayerUDP.transmittedBytesPerSender[sock][realAddr.toString()]
                 currentIndex = LayerUDP.receivedBytesPerSender[sock][realAddr.toString()]
-                chunk, addr = sock.recvfrom(len(tmpData))
+                chunk = tmpData[4:]
                 bytesReceived = len(chunk)
-                LayerUDP.packetsPerSender[sock][realAddr.toString()][currentIndex:currentIndex+bytesReceived] = chunk
+                LayerUDP.packetsPerSender[sock][realAddr.toString()] += chunk
                 currentIndex += bytesReceived
                 LayerUDP.receivedBytesPerSender[sock][realAddr.toString()] = currentIndex
-                if currentIndex < totalLength: return True, realAddr
-                if currentIndex > totalLength: return False, realAddr
-                data.extend(LayerUDP.packetsPerSender[sock][realAddr.toString()])
-                del LayerUDP.packetsPerSender[sock][realAddr.toString()]
-                del LayerUDP.receivedBytesPerSender[sock][realAddr.toString()]
-                del LayerUDP.transmittedBytesPerSender[sock][realAddr.toString()]
+            currentIndex = LayerUDP.receivedBytesPerSender[sock][realAddr.toString()]
+            totalLength = LayerUDP.transmittedBytesPerSender[sock][realAddr.toString()]
+            if currentIndex < totalLength:
+                print("not enough data")
                 return True, realAddr
+            if currentIndex > totalLength:
+                print("too many data")
+                return False, realAddr
+            data.extend(LayerUDP.packetsPerSender[sock][realAddr.toString()])
+            del LayerUDP.packetsPerSender[sock][realAddr.toString()]
+            del LayerUDP.receivedBytesPerSender[sock][realAddr.toString()]
+            del LayerUDP.transmittedBytesPerSender[sock][realAddr.toString()]
+            return True, realAddr
         except socket.error:
+            print("socket error")
             return False, realAddr
     

@@ -5,7 +5,7 @@ from os.path import dirname, join
 sys.path.append(join(dirname(__file__),"modules"))
 
 from netAbstraction import GetAdapterList, GetAdapterAddress
-from netAbstraction import Address,ServerUDP, MonoServerUDP
+from netAbstraction import Address,ServerUDP
 from mykeyboard import KBHit
 
 class ClientHandler:
@@ -18,7 +18,7 @@ class ClientHandler:
         ClientHandler.server.addReceiver(ClientHandler.receivedData)
         ClientHandler.server.addConnector(ClientHandler.connectedClient)
         ClientHandler.server.addDisconnector(ClientHandler.disconnectedClient)
-        #ClientHandler.server.setHandshake(ClientHandler.handshake)
+        ClientHandler.server.setHandshake(ClientHandler.handshake)
 
     def receivedData(cli:Address,buffer:bytearray):
         print("received data")
@@ -62,6 +62,11 @@ def SelectPort() -> int:
     val = input("Which port to use : ")
     return int(val)
 
+import cv2
+import numpy as np
+
+frame = np.zeros((640,480*2,3),dtype=np.uint8)
+
 def main():
     print("==============================================================================")
     print("== udp-server-test                                NetEngine::NetAbstraction ==")
@@ -83,12 +88,8 @@ def main():
             ch = ''
             if kb.kbhit(): ch = kb.getch()
             if ch=='q' or ch=='Q': break
-            if ch=='s' or ch=='S':
-                print("Sending lorem ipsum...")
-                buffer = bytearray()
-                message = input("what message to send: ")
-                buffer.extend(map(ord,message))
-                server.send(buffer)
+            _, buffer = cv2.imencode(".jpg",frame)
+            server.send(buffer.tobytes())
         server.stop()
         print("server stopped")
         server.disconnect()

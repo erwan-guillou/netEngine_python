@@ -11,7 +11,7 @@ class Address:
         return self.ip + ":" + str(self.port)
 
 def MaximumPacketSize(socket:socket.socket) -> int:
-    return 1500
+    return 1400
 
 class Layer:
     @staticmethod
